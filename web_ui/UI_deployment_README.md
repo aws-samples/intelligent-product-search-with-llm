@@ -68,7 +68,7 @@ streamlit run aws_search_demo.py
 
 ### 6.Open ui page
 
-Enter the url in the webpage：http://<EC2 public IP>
+Enter the url in the webpage：http://EC2 public IP
 
 ### 7.configure the invoke url
 
