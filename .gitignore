@@ -1,0 +1,8 @@
+.~*.py
+/lambda/search_layer/__pycache__/
+*.DS_Store
+deployment/cdk.out
+deployment/node_module
+deployment/lib/__pycache__
+*.pyc
+.idea/
