@@ -220,7 +220,7 @@ if st.session_state.url or st.session_state.uploaded_file:
             for product in products:
                 score = product['score']
                 scores_list.append(str(score))
-                source = product['source']
+                source = product['product_info']
                 source_list.append(source)
                 
                 if image_coloum_name in source.keys():

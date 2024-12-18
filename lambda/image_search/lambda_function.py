@@ -1,7 +1,7 @@
 import json
 from typing import List
 from opensearch_search import get_opensearch_client
-from embeddings import *
+from image_embeddings import *
 import boto3
 
 bucket = os.environ.get('bucket_name')
@@ -39,14 +39,15 @@ def lambda_handler(event, context):
     if "task" in evt_body.keys():
         task = evt_body['task']
     print('task:',task)
-        
-    embeddingType = 'sagemaker'
-    if "embeddingType" in evt_body.keys():
-        embeddingType = evt_body['embeddingType']
     
     embeddingEndpoint = ""
     if "embeddingEndpoint" in evt_body.keys():
         embeddingEndpoint = evt_body['embeddingEndpoint']
+    
+    imageEmbeddingModelId = ""
+    if "imageEmbeddingModelId" in evt_body.keys():
+        imageEmbeddingModelId = evt_body['imageEmbeddingModelId']
+    print("imageEmbeddingModelId:",imageEmbeddingModelId)  
     
     vectorSearchNumber = 3
     if "vectorSearchNumber" in evt_body.keys():
@@ -78,6 +79,10 @@ def lambda_handler(event, context):
         product = evt_body['product']
     print('product:',product)
     
+    model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
+    if "model_id" in evt_body.keys():
+        model_id = evt_body['model_id'].strip()
+    print('model_id:',model_id)
     
     prompt = '请找出图片中{product}的图片坐标，给出一个准确的边界框，输出x,y,x1,y1共4个参数，其中x,y代表{product}的左上角的坐标，x1,y1代表{product}右下角的坐标，{product}的图片坐标尽量只保留{product}，输出答案为json格式'
     if "prompt" in evt_body.keys():
@@ -85,7 +90,7 @@ def lambda_handler(event, context):
     print('prompt:',prompt)
     
     if task == 'image-coordinate' and len(bucket) > 0 and len(imageName) > 0 and len(product) > 0:
-        coordinate = get_image_coordinate(bucket, imageName, product, prompt)
+        coordinate = get_image_coordinate(bucket, imageName, product, prompt,model_id)
         response = {
                 "statusCode": 200,
                 "headers": {
@@ -101,19 +106,27 @@ def lambda_handler(event, context):
             }
         ) 
     
-    elif task == 'image-search' and (len(url) > 0 or len(imageName) > 0) and len(embeddingEndpoint) >0:
+    elif task == 'image-search' and (len(url) > 0 or len(imageName) > 0):
         
         if len(url) > 0:
-            image_embedding = get_image_embedding_sagemaker(embeddingEndpoint,url)
+            if len(imageEmbeddingModelId) > 0:
+                image_embedding = get_embedding_bedrock_multimodal(url=image_url,model_id=imageEmbeddingModelId)
+            elif len(embeddingEndpoint) > 0:
+                image_embedding = get_image_embedding_sagemaker(embeddingEndpoint,url)
+            
         elif len(imageName) > 0 and len(bucket) > 0:
-            image_embedding = get_image_embedding_s3(embeddingEndpoint,bucket,imageName)
+            if len(imageEmbeddingModelId) > 0:
+                image_embedding = get_embedding_bedrock_multimodal(image_name=imageName,bucket=bucket,model_id=imageEmbeddingModelId)
+            elif len(embeddingEndpoint) > 0:
+                image_embedding = get_image_embedding_s3(embeddingEndpoint,bucket,imageName)
+            
         results = vector_search(index,image_embedding,size=vectorSearchNumber,vector_field=vectorField)
         products = []
         for result in results:
             score = float(result['_score'])
             metadata = result['_source']['metadata']
             if score >= vectorScoreThresholds:
-                products.append({'score':score,'source':metadata})
+                products.append({'score':score,'product_info':metadata})
                 
         print('products:',products)
         response = {
