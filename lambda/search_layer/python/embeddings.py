@@ -116,7 +116,46 @@ def get_reranker_scores(pairs, endpoint_name):
     output = json.loads(response_model['Body'].read().decode('utf8'))
     return output
     
-    
+def get_reranker_scores_bedrock(text_query, documents, num_results,modelId :str= "cohere.rerank-v3-5:0"):
+    region = boto3.Session().region_name
+    model_package_arn = f"arn:aws:bedrock:{region}::foundation-model/{modelId}"
+
+    text_sources = []
+    for text in documents:
+        text_sources.append({
+            "type": "INLINE",
+            "inlineDocumentSource": {
+                "type": "TEXT",
+                "textDocument": {
+                    "text": text,
+                }
+            }
+        })
+
+    bedrock_agent_runtime = boto3.client('bedrock-agent-runtime',region_name=region)
+    response = bedrock_agent_runtime.rerank(
+        queries=[
+            {
+                "type": "TEXT",
+                "textQuery": {
+                    "text": text_query
+                }
+            }
+        ],
+        sources=text_sources,
+        rerankingConfiguration={
+            "type": "BEDROCK_RERANKING_MODEL",
+            "bedrockRerankingConfiguration": {
+                "numberOfResults": num_results,
+                "modelConfiguration": {
+                    "modelArn": model_package_arn,
+                }
+            }
+        }
+    )
+    return response['results']
+
+
 def invoke_claude_3_multimodal(prompt, base64_image_data):
         """
         Invokes Anthropic Claude 3 Sonnet to run a multimodal inference using the input
