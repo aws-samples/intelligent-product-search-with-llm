@@ -9,6 +9,32 @@ import os
 
 smr_client = boto3.client("sagemaker-runtime")
 
+def get_embedding_bedrock(model_id: str, text: str='',image: str=''):
+    input_body = {}
+    if model_id.find('titan') >= 0 and len(text) > 0:
+        input_body = {"inputText": text}
+    elif model_id.find('titan') >= 0 and len(image) > 0:
+        input_body = {"inputImage": image}
+    elif model_id.find('cohere') >= 0:
+        input_body = {"texts": [text], "input_type": "search_document"}
+    body = json.dumps(input_body)
+
+    try:
+        response = bedrock_client.invoke_model(
+            body=body,
+            modelId=model_id,
+            accept="*/*",
+            contentType="application/json",
+        )
+        response_body = json.loads(response.get("body").read())
+        if model_id.find('titan') >= 0:
+            return response_body.get("embedding")
+        elif model_id.find('cohere') >= 0:
+            return response_body.get("embeddings")[0]
+    except Exception as e:
+        raise ValueError(f"Error raised by inference endpoint: {e}")
+
+
 def get_embedding_sagemaker(endpoint_name: str, inputs: str, language: str = 'chinese',is_query: bool=False):
     instruction = "为这个句子生成表示以用于检索相关文章："
     if language == 'english':
@@ -49,7 +75,30 @@ def get_image_embedding_s3(endpoint_name: str, bucket:str, image_name: str):
         output = run_inference(endpoint_name, inputs)
         image_embedding = output['image_embedding'][0]
     return image_embedding
-    
+
+def get_image_embedding_bedrock(model_id: str, url: str):
+    image_embedding = ''
+    if len(endpoint_name) >0 and len(url) > 0:
+        base64_string = encode_image(url)
+        image_embedding = get_embedding_bedrock(model_id,image=base64_string)
+    return image_embedding
+
+def get_image_embedding_s3_bedrock(model_id: str, bucket: str, image_name: str):
+    image_embedding = ''
+    if len(endpoint_name) >0 and len(image_name) > 0:
+        s3 = boto3.client('s3')
+        image_object = s3.get_object(Bucket=bucket, Key=image_name)
+        file_stream = image_object['Body']
+        image = Image.open(file_stream)
+
+        output_buffer = BytesIO()
+        image.save(output_buffer, format='JPEG')
+        byte_data = output_buffer.getvalue()
+        image_base64 = base64.b64encode(byte_data).decode("utf-8")
+        image_embedding = get_embedding_bedrock(model_id,image=image_base64)
+    return image_embedding
+
+
 def run_inference(endpoint_name, inputs):
     response = smr_client.invoke_endpoint(EndpointName=endpoint_name, Body=json.dumps(inputs))
     return json.loads(response["Body"].read().decode("utf-8"))

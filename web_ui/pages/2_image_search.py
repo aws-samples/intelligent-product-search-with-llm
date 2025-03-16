@@ -80,13 +80,16 @@ def get_image_coordinate(image_name,product,bucket_name,invoke_url,bucket:str=''
 
     return coordinate
 
-def image_search_url(image_url,index,invoke_url,endpoint_name,vectorSearchNumber):
+def image_search_url(image_url,index,invoke_url,endpoint_name,embedding_model,vectorSearchNumber):
     url = invoke_url + '/image_search?'
     if len(image_url) > 0:
         url += ('&url='+image_url)
     url += ('&index='+index)
     url += ('&task=image-search')
-    url += ('&embeddingEndpoint='+endpoint_name)
+    if len(endpoint_name) > 0:
+        url += ('&embeddingEndpoint='+endpoint_name)
+    elif len(embedding_model) > 0:
+        url += ('&imageEmbeddingModelId='+embedding_model)
     url += ('&vectorSearchNumber='+str(vectorSearchNumber))
 
     print('url:',url)
@@ -98,14 +101,17 @@ def image_search_url(image_url,index,invoke_url,endpoint_name,vectorSearchNumber
     return products
 
 
-def image_search_localfile(image_name,index,invoke_url,bucket_name,endpoint_name,vectorSearchNumber):
+def image_search_localfile(image_name,index,invoke_url,bucket_name,endpoint_name,embedding_model,vectorSearchNumber):
     url = invoke_url + '/image_search?'
     new_image_name = image_name.split('.')[0] + '-' + str(time.time()) + '.' + image_name.split('.')[-1]
     upload_file(image_name,bucket_name,new_image_name)
     url += ('&imageName='+new_image_name)
     url += ('&index='+index)
     url += ('&task=image-search')
-    url += ('&embeddingEndpoint='+endpoint_name)
+    if len(endpoint_name) > 0:
+        url += ('&embeddingEndpoint='+endpoint_name)
+    elif len(embedding_model) > 0:
+        url += ('&imageEmbeddingModelId='+embedding_model)
     url += ('&vectorSearchNumber='+str(vectorSearchNumber))
 
     print('url:',url)
@@ -142,11 +148,19 @@ with st.sidebar:
         key="region",
     )
 
-    sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
     openserch_index = get_openserch_index(search_invoke_url)
-    
-    image_search_sagemaker_endpoint = st.selectbox("Please Select image embedding sagemaker endpoint",sagemaker_endpoint)
     index = st.selectbox("Please Select opensearch index",openserch_index)
+
+    image_search_sagemaker_endpoint = ''
+    image_search_model_id = ''
+    model_type = st.radio("Select model type",["Bedrock","SageMaker"])
+    if model_type == 'Bedrock':
+        image_search_model_id = st.selectbox("Please Select image embedding model",['amazon.titan-embed-image-v1'])
+
+    elif model_type == 'SageMaker':
+        sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
+        image_search_sagemaker_endpoint = st.selectbox("Please Select image embedding sagemaker endpoint",sagemaker_endpoint)
+
 
     vectorSearchNumber = st.slider("Image Search Number",min_value=1, max_value=10, value=3, step=1)
     image_coloum_name = st.text_input(label="Image coloum name", value="mainImage")
@@ -187,7 +201,7 @@ if st.session_state.url or st.session_state.uploaded_file:
             image.save(st.session_state.uploaded_file.name)
 
             if len(product_catagory) == 0 :
-                products = image_search_localfile(st.session_state.uploaded_file.name,index,search_invoke_url,bucket_name,image_search_sagemaker_endpoint,vectorSearchNumber)
+                products = image_search_localfile(st.session_state.uploaded_file.name,index,search_invoke_url,bucket_name,image_search_sagemaker_endpoint,image_search_model_id,vectorSearchNumber)
             else:
                 coordinate = get_image_coordinate(st.session_state.uploaded_file.name,product_catagory,bucket_name,search_invoke_url)
                 products = []
@@ -202,7 +216,7 @@ if st.session_state.url or st.session_state.uploaded_file:
                     st.write('提取产品图片：')
                     st.image(cropped_iamge)
                     cropped_iamge.save('cropped_'+st.session_state.uploaded_file.name)
-                    products = image_search_localfile('cropped_'+st.session_state.uploaded_file.name,index,search_invoke_url,bucket_name,image_search_sagemaker_endpoint,vectorSearchNumber)
+                    products = image_search_localfile('cropped_'+st.session_state.uploaded_file.name,index,search_invoke_url,bucket_name,image_search_sagemaker_endpoint,image_search_model_id,vectorSearchNumber)
                     os.remove('cropped_'+st.session_state.uploaded_file.name)
 
             os.remove(st.session_state.uploaded_file.name)

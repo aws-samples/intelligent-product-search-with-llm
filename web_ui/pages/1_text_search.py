@@ -30,6 +30,8 @@ def product_search(query,
                 index,
                 endpoint_name: str = '',
                 rerankerEndpoint: str = '',
+                embModelId: str = '',
+                rerankModelId: str= '',
                 searchType: str = 'text',
                 textSearchNumber: int = 3,
                 vectorSearchNumber: int = 0,
@@ -48,6 +50,10 @@ def product_search(query,
         url += ('&embeddingEndpoint='+endpoint_name)
     if len(rerankerEndpoint) > 0:
         url += ('&rerankerEndpoint='+rerankerEndpoint)
+    if len(embModelId) > 0:
+        url += ('&embeddingModel='+embModelId)
+    if len(rerankModelId) > 0:
+        url += ('&rerankerModel='+rerankModelId)
     if textSearchNumber > 0:
         url += ('&textSearchNumber='+str(textSearchNumber))
     if vectorSearchNumber > 0:
@@ -118,14 +124,24 @@ with st.sidebar:
         "",
         key="product_search_invoke_url",
     )
-    
-    
-    sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
     openserch_index = get_openserch_index(search_invoke_url)
-    
-    product_search_sagemaker_endpoint = st.selectbox("Please Select text embedding sagemaker endpoint",sagemaker_endpoint)
-    reranker_sagemaker_endpoint = st.selectbox("Please Select reranker sagemaker endpoint",sagemaker_endpoint)
     index = st.selectbox("Please Select opensearch index",openserch_index)
+
+    product_search_sagemaker_endpoint = ''
+    reranker_sagemaker_endpoint = ''
+    product_search_bedrock_model = ''
+    reranker_bedrock_model = ''
+    model_type = st.radio("Select model type",["Bedrock","SageMaker"])
+
+    if model_type == 'Bedrock':
+        product_search_bedrock_model = st.selectbox("Please Select text embedding model",['cohere.embed-multilingual-v3','amazon.titan-embed-image-v1'])
+        reranker_bedrock_model = st.selectbox("Please Select reranker embedding model",['cohere.rerank-v3-5:0'])
+
+    elif model_type == 'SageMaker':
+        sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
+        product_search_sagemaker_endpoint = st.selectbox("Please Select text embedding sagemaker endpoint",sagemaker_endpoint)
+        reranker_sagemaker_endpoint = st.selectbox("Please Select reranker sagemaker endpoint",sagemaker_endpoint)     
+    
     
     search_type  = st.radio("Search Type",["text","vector",'mix'])
     st.write('For text search type:')
@@ -174,6 +190,8 @@ if st.session_state.query:
                                   index,
                                   product_search_sagemaker_endpoint,
                                   reranker_sagemaker_endpoint,
+                                  product_search_bedrock_model,
+                                  reranker_bedrock_model,
                                   search_type,
                                   textSearchNumber,
                                   vectorSearchNumber,

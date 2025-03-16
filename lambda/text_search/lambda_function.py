@@ -83,6 +83,10 @@ def lambda_handler(event, context):
     if "embeddingEndpoint" in evt_body.keys():
         embeddingEndpoint = evt_body['embeddingEndpoint']
 
+    embeddingModel = ""
+    if "embeddingModel" in evt_body.keys():
+        embeddingModel = evt_body['embeddingModel']
+
     textSearchNumber = 0
     if "textSearchNumber" in evt_body.keys() and evt_body['textSearchNumber'] is not None:
         textSearchNumber = int(evt_body['textSearchNumber'])
@@ -122,6 +126,10 @@ def lambda_handler(event, context):
     if "rerankerEndpoint" in evt_body.keys():
         rerankerEndpoint = evt_body['rerankerEndpoint']
         
+    rerankerModel = ""
+    if "rerankerModel" in evt_body.keys():
+        rerankerModel = evt_body['rerankerModel']
+
     keyworks = ""
     if "keyworks" in evt_body.keys():
         keyworks = evt_body['keyworks']
@@ -154,8 +162,12 @@ def lambda_handler(event, context):
                     else:
                         products.append({'score':score,'source':metadata})
            
-        if (searchType == 'vector' or searchType == 'mix') and embeddingType == 'sagemaker' and len(index) > 0 and len(query) > 0 and len(embeddingEndpoint) > 0:
-            embedding = get_embedding_sagemaker(embeddingEndpoint,query,language=language,is_query=True)
+
+        if (searchType == 'vector' or searchType == 'mix') and len(index) > 0 and len(query) > 0:
+            if len(embeddingEndpoint) > 0:
+                embedding = get_embedding_sagemaker(embeddingEndpoint,query,language=language,is_query=True)
+            elif len(embeddingModel) > 0:
+                embedding = get_embedding_bedrock(embeddingModel,query)
             results = vector_search(index,embedding,size=vectorSearchNumber,vector_field=vectorField)
             for result in results:
                 score = result['_score']
@@ -168,23 +180,35 @@ def lambda_handler(event, context):
                             product_id_set.add(product_id)
                     else:
                         products.append({'score':score,'source':metadata})
-                        
-        if searchType == 'mix' and len(rerankerEndpoint) > 0:
-            pairs = []
-            for product in products:
-                product_name = product['source'][productIdName]
-                pair = [query,product_name]
-                pairs.append(pair)
-    
-            scores = get_reranker_scores(pairs,rerankerEndpoint)
-            scores = scores['rerank_scores']
-            new_products=[]
-            for i in range(len(products)):
-                new_product = products[i].copy()
-                new_product['rerank_score'] = scores[i]
-                new_products.append(new_product)
-            products = sorted(new_products,key=lambda new_products:new_products['rerank_score'],reverse=True)
-            
+
+        if searchType == 'mix':
+            if len(rerankerEndpoint) > 0:
+                pairs = []
+                for product in products:
+                    product_name = product['source'][productIdName]
+                    pair = [query,product_name]
+                    pairs.append(pair)
+
+                scores = get_reranker_scores(pairs,rerankerEndpoint)
+                scores = scores['rerank_scores']
+                new_products=[]
+                for i in range(len(products)):
+                    new_product = products[i].copy()
+                    new_product['rerank_score'] = scores[i]
+                    new_products.append(new_product)
+                products = sorted(new_products,key=lambda new_products:new_products['rerank_score'],reverse=True)
+            elif len(rerankerModel) > 0:
+                product_names = [product['source'][productIdName] for product in products]
+                rerank_result = get_reranker_scores_bedrock(query,product_names,len(product_names),rerankerModel)
+                new_products=[]
+                for rerank_item in rerank_result:
+                    index = int(rerank_item['index'])
+                    score = float(rerank_item['relevanceScore'])
+                    new_product = products[index].copy()
+                    new_product['rerank_score'] = scores[i]
+                    new_products.append(new_product)
+                products = sorted(new_products,key=lambda new_products:new_products['rerank_score'],reverse=True)
+
         
         print('products:',products)
         response = {
