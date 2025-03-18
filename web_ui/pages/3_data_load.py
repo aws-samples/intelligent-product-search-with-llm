@@ -72,7 +72,7 @@ def get_openserch_index(invoke_url):
     print('opensearch index:',response)
     return response
 
-def data_load(invoke_url,index,file_name,load_type,text_coloum_name: str='',llm_keywords: str='',image_coloum_name: str='',text_endpoint_name: str='',image_endpoint_name: str='',model_id: str='',api_url: str=''):
+def data_load(invoke_url,index,file_name,load_type,text_coloum_name: str='',llm_keywords: str='',image_coloum_name: str='',text_endpoint_name: str='',image_endpoint_name: str='',textEmbeddingModelId: str='',imageEmbeddingModelId: str= '',model_id: str='',api_url: str=''):
     url = invoke_url + '/data_load?'
     url += ('&index='+index)
     url += ('&task=data_load')
@@ -100,6 +100,12 @@ def data_load(invoke_url,index,file_name,load_type,text_coloum_name: str='',llm_
     if load_type.find('image') >= 0 and len(image_endpoint_name) > 0:
         url += ('&imageEmbeddingEndpoint='+image_endpoint_name)
 
+    if load_type.find('text') >= 0 and len(textEmbeddingModelId) > 0:
+        url += ('&textEmbeddingModelId='+textEmbeddingModelId)
+    
+    if load_type.find('image') >= 0 and len(imageEmbeddingModelId) > 0:
+        url += ('&imageEmbeddingModelId='+imageEmbeddingModelId)
+
     print('url:',url)
     now1 = datetime.now()
     response = requests.get(url)
@@ -117,48 +123,67 @@ def new_file() -> None:
 with st.sidebar:
     invoke_url = st.text_input(
         "Please input a data load api url",
-        "https://xxxxxxxx.execute-api.us-east-1.amazonaws.com/prod",
+        "",
         key="image_search_invoke_url",
     )
     
     account = st.text_input(
         "Please input aws account:",
-        "xxxxxxxxxxx",
+        "",
         key="account",
     )
     region = st.text_input(
         "Please input region:",
-        "us-east-1",
+        "",
         key="region",
     )
 
-    sagemaker_endpoint = get_sagemaker_endpoint(invoke_url)
-    openserch_index = get_openserch_index(invoke_url)
-    data_opensearch_index = st.selectbox("Please Select opensearch index",openserch_index)
-    new_index = st.text_input("New index","")
-    load_type  = st.radio("Load Type",["text","image",'text_and_image'])
-  
-    text_coloum_name = ''
-    text_endpoint_name = ''
-    if load_type.find('text') >=0:
-        text_endpoint_name = st.selectbox("Please Select text embedding sagemaker endpoint", sagemaker_endpoint)
-        text_coloum_name = st.text_input("Text embedding coloum name,Separate multiple fields using ,","NAME,CATEGORY,KEYWORDS,SHORT_DESCRIPTION")
-        llm_keywords  = st.radio("Use LLM to extract keywords",["Yes","No"])
-        if llm_keywords == "Yes":
-            model_id = st.text_input("Input the model id","anthropic.claude-3-sonnet-20240229-v1:0")
-            api_url = st.text_input("If call another region's bedrock, Input the api url","https://xxxxxxxx.execute-api.us-east-1.amazonaws.com/prod")
+    if len(invoke_url) >0:
+        openserch_index = get_openserch_index(invoke_url)
+        data_opensearch_index = st.selectbox("Please Select opensearch index",openserch_index)
+        new_index = st.text_input("New index","")
+        load_type  = st.radio("Load Type",["text","image",'text_and_image'])
+     
+        model_type = st.radio("Select model type",["Bedrock","SageMaker"])
 
-    image_coloum_name = ''
-    image_endpoint_name = ''
-    if load_type.find('image') >=0:
-        image_endpoint_name = st.selectbox("Please Select image embedding sagemaker endpoint", sagemaker_endpoint)
-        image_coloum_name = st.text_input("Image coloum name","mainImage")
+        text_endpoint_name = ''
+        image_endpoint_name = ''
+        model_id = ''
+        api_url = ''
 
-    size = 10
-    if load_type == 'text' and llm_keywords == 'No':
-        size = 100
-    elif load_type == 'text' and llm_keywords == 'Yes':
-        size = 6
+        if model_type == 'SageMaker':
+            sagemaker_endpoint = get_sagemaker_endpoint(invoke_url)
+
+        text_coloum_name = ''
+        text_endpoint_name = ''
+        text_model_name = ''
+        if load_type.find('text') >=0:
+            if model_type == 'Bedrock':
+                text_model_name = st.selectbox("Please Select text embedding model",['amazon.titan-embed-image-v1','cohere.embed-multilingual-v3'])
+            elif model_type == 'SageMaker':
+                text_endpoint_name = st.selectbox("Please Select text embedding sagemaker endpoint",sagemaker_endpoint)
+
+            text_coloum_name = st.text_input("Text embedding coloum name,Separate multiple fields using ,","ProductTitle,Colour,ProductType,SubCategory,Category,Gender")
+            llm_keywords  = st.radio("Use LLM to extract keywords",["Yes","No"])
+            if llm_keywords == "Yes":
+                model_id = st.text_input("Input the model id","anthropic.claude-3-5-sonnet-20241022-v2:0")
+
+        image_coloum_name = ''
+        image_endpoint_name = ''
+        image_model_name = ''
+        if load_type.find('image') >=0:
+            image_endpoint_name = ''
+            if model_type == 'Bedrock':
+                image_model_name = st.selectbox("Please Select image embedding model",['amazon.titan-embed-image-v1'])
+            elif model_type == 'SageMaker':
+                image_endpoint_name = st.selectbox("Please Select image embedding sagemaker endpoint",sagemaker_endpoint)
+            image_coloum_name = st.text_input("Image coloum name","ImageURL")
+
+        size = 10
+        if load_type == 'text' and llm_keywords == 'No':
+            size = 100
+        elif load_type == 'text' and llm_keywords == 'Yes':
+            size = 6
 
 # Add a button to start a new chat
 st.sidebar.button("New File", on_click=new_file, type='primary')
@@ -215,12 +240,12 @@ if st.session_state.uploaded_file:
                         upload_file(split_file_name,bucket_name,object_name)
                         
                         try:
-                            response = data_load(invoke_url,index,object_name,load_type,text_coloum_name,llm_keywords,image_coloum_name,text_endpoint_name,image_endpoint_name,model_id,api_url)
+                            response = data_load(invoke_url,index,object_name,load_type,text_coloum_name,llm_keywords,image_coloum_name,text_endpoint_name,image_endpoint_name,text_model_name,image_model_name,model_id,api_url)
                         except Exception as e:
                             print(e)
                             
                         if 'message' in response.keys() and response['message'] == 'Endpoint request timed out':
-                            response = data_load(invoke_url,index,object_name,load_type,text_coloum_name,llm_keywords,image_coloum_name,text_endpoint_name,image_endpoint_name,model_id,api_url)
+                            response = data_load(invoke_url,index,object_name,load_type,text_coloum_name,llm_keywords,image_coloum_name,text_endpoint_name,image_endpoint_name,text_model_name,image_model_name,model_id,api_url)
                             if 'result' not in response.keys():
                                 continue
                         

@@ -124,47 +124,48 @@ with st.sidebar:
         "",
         key="product_search_invoke_url",
     )
-    openserch_index = get_openserch_index(search_invoke_url)
-    index = st.selectbox("Please Select opensearch index",openserch_index)
+    if len(search_invoke_url) > 0:
+        openserch_index = get_openserch_index(search_invoke_url)
+        index = st.selectbox("Please Select opensearch index",openserch_index)
 
-    product_search_sagemaker_endpoint = ''
-    reranker_sagemaker_endpoint = ''
-    product_search_bedrock_model = ''
-    reranker_bedrock_model = ''
-    model_type = st.radio("Select model type",["Bedrock","SageMaker"])
+        product_search_sagemaker_endpoint = ''
+        reranker_sagemaker_endpoint = ''
+        product_search_bedrock_model = ''
+        reranker_bedrock_model = ''
+        model_type = st.radio("Select model type",["Bedrock","SageMaker"])
 
-    if model_type == 'Bedrock':
-        product_search_bedrock_model = st.selectbox("Please Select text embedding model",['cohere.embed-multilingual-v3','amazon.titan-embed-image-v1'])
-        reranker_bedrock_model = st.selectbox("Please Select reranker embedding model",['cohere.rerank-v3-5:0'])
+        if model_type == 'Bedrock':
+            product_search_bedrock_model = st.selectbox("Please Select text embedding model",['amazon.titan-embed-image-v1','cohere.embed-multilingual-v3'])
+            reranker_bedrock_model = st.selectbox("Please Select reranker embedding model",['cohere.rerank-v3-5:0'])
 
-    elif model_type == 'SageMaker':
-        sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
-        product_search_sagemaker_endpoint = st.selectbox("Please Select text embedding sagemaker endpoint",sagemaker_endpoint)
-        reranker_sagemaker_endpoint = st.selectbox("Please Select reranker sagemaker endpoint",sagemaker_endpoint)     
-    
-    
-    search_type  = st.radio("Search Type",["text","vector",'mix'])
-    st.write('For text search type:')
-    textSearchNumber = st.slider("Text Search Number",min_value=1, max_value=10, value=3, step=1)
-    textScoreThresholds = st.slider("Text Score Threshold",min_value=0, max_value=50, value=0, step=1)
-    
-    st.write('For vector search type:')
-    vectorSearchNumber = st.slider("Vector Search Number",min_value=1, max_value=10, value=3, step=1)
-    vectorScoreThresholds = st.slider("Vector Score Threshold",min_value=0.0, max_value=1.0, value=0.0, step=0.01)
-    image_coloum_name = st.text_input(label="Image coloum name", value="mainImage")
-    item_name_coloum_name = st.text_input(label="Item coloum name", value="NAME")
-    Description_coloum_name = st.text_input(label="Description coloum name", value="SHORT_DESCRIPTION")
-    Keywords_coloum_name = st.text_input(label="Keywords coloum name", value="KEYWORDS")
+        elif model_type == 'SageMaker':
+            sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
+            product_search_sagemaker_endpoint = st.selectbox("Please Select text embedding sagemaker endpoint",sagemaker_endpoint)
+            reranker_sagemaker_endpoint = st.selectbox("Please Select reranker sagemaker endpoint",sagemaker_endpoint)     
+        
+        
+        search_type  = st.radio("Search Type",["text","vector",'mix'])
+        st.write('For text search type:')
+        textSearchNumber = st.slider("Text Search Number",min_value=1, max_value=20, value=6, step=1)
+        textScoreThresholds = st.slider("Text Score Threshold",min_value=0, max_value=50, value=0, step=1)
+        
+        st.write('For vector search type:')
+        vectorSearchNumber = st.slider("Vector Search Number",min_value=1, max_value=20, value=6, step=1)
+        vectorScoreThresholds = st.slider("Vector Score Threshold",min_value=0.0, max_value=1.0, value=0.0, step=0.01)
+        image_coloum_name = st.text_input(label="Image coloum name", value="ImageURL")
+        item_name_coloum_name = st.text_input(label="Item coloum name", value="ProductTitle")
+        Description_coloum_name = st.text_input(label="Description coloum name", value="")
+        Keywords_coloum_name = st.text_input(label="Keywords coloum name", value="")
 
 
-    personalize_ranking = st.radio("Personalize Ranking",["No","Yes"])
-    if personalize_ranking == 'Yes':
-        personalize_invoke_url = st.text_input(
-            "Please input a personalize api url",
-            "",
-            key="personalize_invoke_url",
-        )
-        user_id = st.text_input('Please input a user id','',key='')
+        personalize_ranking = st.radio("Personalize Ranking",["No","Yes"])
+        if personalize_ranking == 'Yes':
+            personalize_invoke_url = st.text_input(
+                "Please input a personalize api url",
+                "",
+                key="personalize_invoke_url",
+            )
+            user_id = st.text_input('Please input a user id','',key='')
 
 # Add a button to start a new chat
 st.sidebar.button("New Query", on_click=new_query, type='primary')
@@ -176,7 +177,7 @@ if st.session_state.query:
         st.write("Query is None")
     elif len(search_invoke_url) == 0:
         st.write("Search invoke url is None")
-    elif len(product_search_sagemaker_endpoint) == 0:
+    elif len(product_search_sagemaker_endpoint) == 0 and len(product_search_bedrock_model) == 0 and search_type != 'text':
         st.write("Embedding sagemaker endpoint is None")
     elif len(index) == 0:
         st.write("Opensearch index is None")

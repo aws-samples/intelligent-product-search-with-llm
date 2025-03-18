@@ -8,13 +8,12 @@ from io import BytesIO
 import os
 
 smr_client = boto3.client("sagemaker-runtime")
+bedrock_client = boto3.client("bedrock-runtime")
 
-def get_embedding_bedrock(model_id: str, text: str='',image: str=''):
+def get_embedding_bedrock(model_id: str, text: str=''):
     input_body = {}
     if model_id.find('titan') >= 0 and len(text) > 0:
         input_body = {"inputText": text}
-    elif model_id.find('titan') >= 0 and len(image) > 0:
-        input_body = {"inputImage": image}
     elif model_id.find('cohere') >= 0:
         input_body = {"texts": [text], "input_type": "search_document"}
     body = json.dumps(input_body)
@@ -34,6 +33,35 @@ def get_embedding_bedrock(model_id: str, text: str='',image: str=''):
     except Exception as e:
         raise ValueError(f"Error raised by inference endpoint: {e}")
 
+def get_embedding_bedrock_multimodal(inputs:str='',url:str='',image_name:str='',bucket:str='',model_id:str="amazon.titan-embed-image-v1"):
+    bedrock = boto3.client(service_name='bedrock-runtime')
+    accept = "application/json"
+    contentType = "application/json"
+    body = {}
+    
+    if len(inputs) > 0:
+        body = {'inputText':inputs}
+        
+    if len(url) > 0:
+        image = Image.open(BytesIO(requests.get(url).content))
+        image_string = encode_image_base64(image)
+        body = {'inputImage':image_string}
+    elif len(image_name) > 0 and len(bucket) > 0:
+        s3 = boto3.client('s3')
+        image_object = s3.get_object(Bucket=bucket, Key=image_name)
+        file_stream = image_object['Body']
+        image = Image.open(file_stream)
+        image_string = encode_image_base64(image)
+        body = {'inputImage':image_string}
+        
+    body = json.dumps(body)
+    
+    response = bedrock.invoke_model(
+        body=body, modelId=model_id, accept=accept, contentType=contentType
+    )
+    response_body = json.loads(response.get("body").read())
+    return response_body['embedding']
+
 
 def get_embedding_sagemaker(endpoint_name: str, inputs: str, language: str = 'chinese',is_query: bool=False):
     instruction = "为这个句子生成表示以用于检索相关文章："
@@ -42,17 +70,37 @@ def get_embedding_sagemaker(endpoint_name: str, inputs: str, language: str = 'ch
     inputs = {"inputs": inputs, "is_query":is_query,"instruction":instruction}
     response = run_inference(endpoint_name, inputs)
     return response[0]
+
+
+def encode_image_base64(image):
+    print(image.size)
+    max_size = 1600
+    if image.size[0] > max_size:
+        image = image.resize((max_size,int(image.size[1]*max_size / image.size[0])))
+        print('resize image size:',image.size)
+    output_buffer = BytesIO()
+    image.save(output_buffer, format='JPEG')
+    byte_data = output_buffer.getvalue()
+    image_base64 = base64.b64encode(byte_data).decode("utf-8")
+    return image_base64
     
-def encode_image(url):
-    img_str = base64.b64encode(requests.get(url).content)
-    base64_string = img_str.decode("latin1")
+    
+def encode_image(url,resize:bool=False):
+    if resize:
+        image = Image.open(BytesIO(requests.get(url).content))
+        base64_string = encode_image_base64(image)
+    else:    
+        img_str = base64.b64encode(requests.get(url).content)
+    base64_string = img_str.decode("utf-8")
     return base64_string
+
 
 def get_image_embedding_sagemaker(endpoint_name: str, url: str):
     image_embedding = ''
     if len(endpoint_name) >0 and len(url) > 0:
-        base64_string = encode_image(url)
-        inputs = {"image": base64_string}
+        image = Image.open(BytesIO(requests.get(url).content))
+        image_string = encode_image_base64(image)
+        inputs = {"image": image_string}
         output = run_inference(endpoint_name, inputs)
         image_embedding = output['image_embedding'][0]
     return image_embedding
@@ -65,38 +113,12 @@ def get_image_embedding_s3(endpoint_name: str, bucket:str, image_name: str):
         image_object = s3.get_object(Bucket=bucket, Key=image_name)
         file_stream = image_object['Body']
         image = Image.open(file_stream)
-        
-        output_buffer = BytesIO()
-        image.save(output_buffer, format='JPEG')
-        byte_data = output_buffer.getvalue()
-        image_base64 = base64.b64encode(byte_data).decode("utf-8")
-        
-        inputs = {"image": image_base64}
+        image_string = encode_image_base64(image)
+        inputs = {"image": image_string}
         output = run_inference(endpoint_name, inputs)
         image_embedding = output['image_embedding'][0]
     return image_embedding
 
-def get_image_embedding_bedrock(model_id: str, url: str):
-    image_embedding = ''
-    if len(endpoint_name) >0 and len(url) > 0:
-        base64_string = encode_image(url)
-        image_embedding = get_embedding_bedrock(model_id,image=base64_string)
-    return image_embedding
-
-def get_image_embedding_s3_bedrock(model_id: str, bucket: str, image_name: str):
-    image_embedding = ''
-    if len(endpoint_name) >0 and len(image_name) > 0:
-        s3 = boto3.client('s3')
-        image_object = s3.get_object(Bucket=bucket, Key=image_name)
-        file_stream = image_object['Body']
-        image = Image.open(file_stream)
-
-        output_buffer = BytesIO()
-        image.save(output_buffer, format='JPEG')
-        byte_data = output_buffer.getvalue()
-        image_base64 = base64.b64encode(byte_data).decode("utf-8")
-        image_embedding = get_embedding_bedrock(model_id,image=image_base64)
-    return image_embedding
 
 
 def run_inference(endpoint_name, inputs):

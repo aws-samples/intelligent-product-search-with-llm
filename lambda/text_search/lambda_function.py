@@ -1,7 +1,7 @@
 import json
 from typing import List
 from opensearch_search import get_opensearch_client
-from embeddings import get_embedding_sagemaker,get_reranker_scores
+from embeddings import get_embedding_sagemaker,get_reranker_scores,get_embedding_bedrock,get_reranker_scores_bedrock
 import boto3
 
 def text_search(index: str, search_term: str, name:str='', keyworks:str='', description:str='', size: int = 10):
@@ -205,7 +205,7 @@ def lambda_handler(event, context):
                     index = int(rerank_item['index'])
                     score = float(rerank_item['relevanceScore'])
                     new_product = products[index].copy()
-                    new_product['rerank_score'] = scores[i]
+                    new_product['rerank_score'] = score
                     new_products.append(new_product)
                 products = sorted(new_products,key=lambda new_products:new_products['rerank_score'],reverse=True)
 

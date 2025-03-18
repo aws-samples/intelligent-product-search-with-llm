@@ -17,8 +17,6 @@ st.markdown(
     ### Image search
     - Vector search: Search by calculating the vector similarity between the user input image vector and the product image vector
 
-    ### Image tagging
-    - Vector tagging: Tagging by calculating the vector similarity between the user input image vector and the label information vector
     
     """
 )

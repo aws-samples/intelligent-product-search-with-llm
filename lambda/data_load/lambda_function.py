@@ -184,7 +184,7 @@ def lambda_handler(event, context):
                 if True:
                 # try:
                     if len(textEmbeddingModelId) > 0:
-                        text_embedding = get_embedding_bedrock(product_info,textEmbeddingModelId)
+                        text_embedding = get_embedding_bedrock(textEmbeddingModelId,product_info)
                     elif len(textEmbeddingEndpoint) > 0:
                         text_embedding = get_embedding_sagemaker(textEmbeddingEndpoint,product_info,language=language)
                     print('finish text embedding')

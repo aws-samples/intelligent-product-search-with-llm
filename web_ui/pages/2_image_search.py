@@ -148,23 +148,24 @@ with st.sidebar:
         key="region",
     )
 
-    openserch_index = get_openserch_index(search_invoke_url)
-    index = st.selectbox("Please Select opensearch index",openserch_index)
+    if len(search_invoke_url) > 0:
+        openserch_index = get_openserch_index(search_invoke_url)
+        index = st.selectbox("Please Select opensearch index",openserch_index)
 
-    image_search_sagemaker_endpoint = ''
-    image_search_model_id = ''
-    model_type = st.radio("Select model type",["Bedrock","SageMaker"])
-    if model_type == 'Bedrock':
-        image_search_model_id = st.selectbox("Please Select image embedding model",['amazon.titan-embed-image-v1'])
+        image_search_sagemaker_endpoint = ''
+        image_search_model_id = ''
+        model_type = st.radio("Select model type",["Bedrock","SageMaker"])
+        if model_type == 'Bedrock':
+            image_search_model_id = st.selectbox("Please Select image embedding model",['amazon.titan-embed-image-v1'])
 
-    elif model_type == 'SageMaker':
-        sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
-        image_search_sagemaker_endpoint = st.selectbox("Please Select image embedding sagemaker endpoint",sagemaker_endpoint)
+        elif model_type == 'SageMaker':
+            sagemaker_endpoint = get_sagemaker_endpoint(search_invoke_url)
+            image_search_sagemaker_endpoint = st.selectbox("Please Select image embedding sagemaker endpoint",sagemaker_endpoint)
 
 
-    vectorSearchNumber = st.slider("Image Search Number",min_value=1, max_value=10, value=3, step=1)
-    image_coloum_name = st.text_input(label="Image coloum name", value="mainImage")
-    product_catagory = st.text_input(label="Image search catagory", value="")
+        vectorSearchNumber = st.slider("Image Search Number",min_value=1, max_value=10, value=3, step=1)
+        image_coloum_name = st.text_input(label="Image coloum name", value="ImageURL")
+        product_catagory = st.text_input(label="Image search catagory", value="")
 
 # Add a button to start a new chat
 st.sidebar.button("New Image", on_click=new_image, type='primary')
@@ -181,7 +182,7 @@ if st.session_state.url or st.session_state.uploaded_file:
         st.write("Search invoke url is None")
     elif len(index) == 0:
         st.write("Opensearch index is None")
-    elif len(image_search_sagemaker_endpoint) == 0:
+    elif len(image_search_sagemaker_endpoint) == 0 and len(image_search_model_id) == 0:
         st.write("Search sagemaker endpoint is None")
     elif len(account) == 0:
         st.write('account is None!')

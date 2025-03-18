@@ -31,9 +31,9 @@
       "aws",
       "aws-cn"
     ],
-    "personalize":true,
+    "personalize":false,
     "text_search": true,
     "image_search": true,
-    "bedrock_invoke": true
+    "bedrock_invoke": false
   }
 }
